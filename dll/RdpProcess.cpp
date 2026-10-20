@@ -17,9 +17,15 @@ BOOL MsRdpEx_DetourCreateProcessWithDllEx(
     PDETOUR_CREATE_PROCESS_ROUTINEA pfCreateProcessA)
 {
     BOOL fSuccess = FALSE;
+    BOOL usedDefaultChar = FALSE;
+    bool dllPathIsAscii = true;
     WCHAR* lpApplicationNameW = NULL;
     WCHAR* lpCommandLineW = NULL;
     WCHAR* lpCurrentDirectoryW = NULL;
+    WCHAR* lpDllNameW = NULL;
+    WCHAR* lpShortDllNameW = NULL;
+    char* lpShortDllNameA = NULL;
+    LPCSTR lpDetoursDllName = lpDllName;
     LPVOID lpEnvironmentW = NULL;
     STARTUPINFOW startupInfoW = { 0 };
 
@@ -43,6 +49,42 @@ BOOL MsRdpEx_DetourCreateProcessWithDllEx(
         }
     }
 
+    for (const unsigned char* current = (const unsigned char*)lpDllName; current && *current; current++)
+    {
+        if (*current > 0x7F)
+        {
+            dllPathIsAscii = false;
+            break;
+        }
+    }
+
+    if (!dllPathIsAscii)
+    {
+        if (MsRdpEx_ConvertToUnicode(CP_UTF8, 0, lpDllName, -1, &lpDllNameW, 0) < 1)
+            goto exit;
+
+        DWORD shortDllNameLength = GetShortPathNameW(lpDllNameW, NULL, 0);
+
+        if (shortDllNameLength < 1)
+            goto exit;
+
+        lpShortDllNameW = (WCHAR*)calloc(shortDllNameLength, sizeof(WCHAR));
+
+        if (!lpShortDllNameW ||
+            GetShortPathNameW(lpDllNameW, lpShortDllNameW, shortDllNameLength) < 1)
+        {
+            goto exit;
+        }
+
+        if (MsRdpEx_ConvertFromUnicode(CP_ACP, WC_NO_BEST_FIT_CHARS, lpShortDllNameW, -1,
+                &lpShortDllNameA, 0, NULL, &usedDefaultChar) < 1 || usedDefaultChar)
+        {
+            goto exit;
+        }
+
+        lpDetoursDllName = lpShortDllNameA;
+    }
+
 #if 0
     fSuccess = DetourCreateProcessWithDllExA(
         lpApplicationName, lpCommandLine,
@@ -64,7 +106,7 @@ BOOL MsRdpEx_DetourCreateProcessWithDllEx(
         bInheritHandles, dwCreationFlags,
         lpEnvironmentW, lpCurrentDirectoryW,
         &startupInfoW, lpProcessInfo,
-        lpDllName,
+        lpDetoursDllName,
         NULL);
 
     if (lpStartupInfo) {
@@ -77,6 +119,9 @@ exit:
     free(lpApplicationNameW);
     free(lpCommandLineW);
     free(lpCurrentDirectoryW);
+    free(lpDllNameW);
+    free(lpShortDllNameW);
+    free(lpShortDllNameA);
     MsRdpEx_FreeStringBlock((const char*)lpEnvironmentW);
     return fSuccess;
 }

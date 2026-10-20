@@ -558,6 +558,7 @@ end:
 #define SYSMENU_RDP_SEND_CTRL_ALT_DEL_ID         7101
 #define SYSMENU_RDP_SEND_CTRL_ALT_END_ID         7102
 #define SYSMENU_RDP_RESIZE_TO_FIT_WINDOW_ID      7103
+#define SYSMENU_RDP_AUTOMATIC_CLIPBOARD_SYNC_ID  7104
 #define SYSMENU_RDP_RANGE_LAST_ID                7104
 
 static WNDPROC Real_TscShellContainerWndProc = NULL;
@@ -754,6 +755,8 @@ static WNDPROC Real_IHWndProc_rdclientax = NULL;
 
 #define MOUSE_JIGGLER_MOVE_MOUSE_TIMER_ID        4301
 #define MOUSE_JIGGLER_SPECIAL_KEY_TIMER_ID       4302
+#define AUTOMATIC_CLIPBOARD_SYNC_TIMER_ID         4303
+#define AUTOMATIC_CLIPBOARD_SYNC_INTERVAL_MS      250
 
 LRESULT CALLBACK Hook_IHWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL isOOBClient)
 {
@@ -846,6 +849,18 @@ LRESULT CALLBACK Hook_IHWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                         AppendMenu(hExtraMenu, MF_SEPARATOR, 0, NULL);
                         AppendMenu(hExtraMenu, MF_STRING, SYSMENU_RDP_RESIZE_TO_FIT_WINDOW_ID, L"Resize to fit window");
 
+                        if (MsRdpEx_GetEnvBool("MSRDPEX_MANUAL_CLIPBOARD_SYNC", false))
+                        {
+                            UINT clipboardMenuFlags = MF_STRING;
+
+                            if (pExtendedSettings->GetAutomaticClipboardSyncEnabled())
+                                clipboardMenuFlags |= MF_CHECKED;
+
+                            AppendMenu(hSystemMenu, clipboardMenuFlags,
+                                SYSMENU_RDP_AUTOMATIC_CLIPBOARD_SYNC_ID,
+                                L"Clipboard: automatic synchronization");
+                        }
+
                         AppendMenu(hSystemMenu, MF_SEPARATOR, 0, NULL);
                         AppendMenu(hSystemMenu, MF_POPUP, (::UINT_PTR)hExtraMenu, L"Extra");
 
@@ -930,11 +945,89 @@ LRESULT CALLBACK Hook_IHWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                         pMsRdpClient9->Release();
                 }
                 break;
+
+            case SYSMENU_RDP_AUTOMATIC_CLIPBOARD_SYNC_ID:
+                if (pExtendedSettings)
+                {
+                    bool automaticSyncEnabled =
+                        !pExtendedSettings->GetAutomaticClipboardSyncEnabled();
+                    HRESULT clipboardHr = pExtendedSettings->SetManualClipboardSyncEnabled(true);
+
+                    if (SUCCEEDED(clipboardHr))
+                    {
+                        if (automaticSyncEnabled)
+                        {
+                            if (!AddClipboardFormatListener(hWnd))
+                            {
+                                DWORD error = GetLastError();
+                                clipboardHr = HRESULT_FROM_WIN32(error ? error : ERROR_GEN_FAILURE);
+                            }
+                            else if (!SetTimer(hWnd, AUTOMATIC_CLIPBOARD_SYNC_TIMER_ID,
+                                AUTOMATIC_CLIPBOARD_SYNC_INTERVAL_MS, NULL))
+                            {
+                                DWORD error = GetLastError();
+                                clipboardHr = HRESULT_FROM_WIN32(error ? error : ERROR_GEN_FAILURE);
+                                RemoveClipboardFormatListener(hWnd);
+                            }
+                            else
+                            {
+                                pExtendedSettings->SetAutomaticClipboardSyncEnabled(true);
+                                HRESULT syncHr = pExtendedSettings->SyncLocalClipboardToRemoteSession();
+
+                                if (FAILED(syncHr))
+                                {
+                                    MsRdpEx_LogPrint(WARN,
+                                        "Initial local clipboard sync failed: 0x%08X", syncHr);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            RemoveClipboardFormatListener(hWnd);
+                            KillTimer(hWnd, AUTOMATIC_CLIPBOARD_SYNC_TIMER_ID);
+                            pExtendedSettings->SetAutomaticClipboardSyncEnabled(false);
+                        }
+                    }
+
+                    if (SUCCEEDED(clipboardHr))
+                    {
+                        HWND hParentWnd = GetAncestor(hWnd, GA_ROOT);
+                        HMENU hSystemMenu = GetSystemMenu(hParentWnd, FALSE);
+                        UINT checkState = automaticSyncEnabled ? MF_CHECKED : MF_UNCHECKED;
+                        CheckMenuItem(hSystemMenu, SYSMENU_RDP_AUTOMATIC_CLIPBOARD_SYNC_ID,
+                            MF_BYCOMMAND | checkState);
+                        DrawMenuBar(hParentWnd);
+                        MsRdpEx_LogPrint(DEBUG, "Automatic clipboard sync: %s",
+                            automaticSyncEnabled ? "enabled" : "disabled");
+                    }
+                    else
+                    {
+                        MsRdpEx_LogPrint(WARN, "Automatic clipboard sync toggle failed: 0x%08X", clipboardHr);
+                    }
+                }
+                break;
+        }
+    }
+    else if (uMsg == WM_CLIPBOARDUPDATE)
+    {
+        if (pExtendedSettings &&
+            pExtendedSettings->GetAutomaticClipboardSyncEnabled() &&
+            pExtendedSettings->ShouldSyncLocalClipboardUpdate())
+        {
+            HRESULT clipboardHr = pExtendedSettings->SyncLocalClipboardToRemoteSession();
+
+            if (FAILED(clipboardHr))
+                MsRdpEx_LogPrint(WARN, "Local clipboard sync failed: 0x%08X", clipboardHr);
         }
     }
     else if (uMsg == WM_TIMER)
     {
-        if (wParam == MOUSE_JIGGLER_MOVE_MOUSE_TIMER_ID)
+        if (wParam == AUTOMATIC_CLIPBOARD_SYNC_TIMER_ID)
+        {
+            if (pExtendedSettings && pExtendedSettings->GetAutomaticClipboardSyncEnabled())
+                pExtendedSettings->SyncRemoteClipboardToLocalSession();
+        }
+        else if (wParam == MOUSE_JIGGLER_MOVE_MOUSE_TIMER_ID)
         {
             if (instance)
             {

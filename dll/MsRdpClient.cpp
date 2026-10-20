@@ -13,6 +13,7 @@
 #include <MsRdpEx/RdpSettings.h>
 #include <MsRdpEx/Sspi.h>
 #include <MsRdpEx/NameResolver.h>
+#include <MsRdpEx/Environment.h>
 
 #include "TSObjects.h"
 
@@ -676,6 +677,15 @@ public:
             m_pMsRdpExtendedSettings->PrepareMouseJiggler();
             m_pMsRdpExtendedSettings->PrepareVideoRecorder();
             m_pMsRdpExtendedSettings->PrepareExtraSystemMenu();
+
+            if (MsRdpEx_GetEnvBool("MSRDPEX_MANUAL_CLIPBOARD_SYNC", false))
+            {
+                m_pMsRdpExtendedSettings->SetAutomaticClipboardSyncEnabled(false);
+                HRESULT clipboardHr = m_pMsRdpExtendedSettings->SetManualClipboardSyncEnabled(true);
+
+                if (FAILED(clipboardHr))
+                    MsRdpEx_LogPrint(WARN, "Manual clipboard sync setup failed: 0x%08X", clipboardHr);
+            }
         }
 
         BeginSspiSessionScope("connect");

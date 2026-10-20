@@ -52,6 +52,12 @@ public:
     HRESULT __stdcall PrepareMouseJiggler();
     HRESULT __stdcall PrepareVideoRecorder();
     HRESULT __stdcall PrepareExtraSystemMenu();
+    HRESULT __stdcall SetManualClipboardSyncEnabled(bool enabled);
+    HRESULT __stdcall SyncLocalClipboardToRemoteSession();
+    HRESULT __stdcall SyncRemoteClipboardToLocalSession();
+    void SetAutomaticClipboardSyncEnabled(bool enabled);
+    bool GetAutomaticClipboardSyncEnabled();
+    bool ShouldSyncLocalClipboardUpdate();
     void SetLoginComplete();
     HRESULT __stdcall ReapplyHardwareZoomLevel();
     char* __stdcall GetKdcProxyUrl();
@@ -117,6 +123,8 @@ private:
     char* m_RecordingPipeName = NULL;
     bool m_DumpBitmapUpdates = false;
     bool m_ExtraSystemMenuEnabled = true;
+    bool m_AutomaticClipboardSyncEnabled = false;
+    DWORD m_RemoteClipboardSequenceNumber = 0;
     bool m_KeyboardHookToggleShortcutEnabled = false;
     char m_KeyboardHookToggleShortcutKey[32];
     IUnknown* m_pWTSPlugin = NULL;

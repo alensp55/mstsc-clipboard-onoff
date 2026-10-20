@@ -7,4 +7,5 @@ dependencies/*
 !dependencies/detours/
 dependencies/sources/
 package/
+dist/
 packages.lock.json

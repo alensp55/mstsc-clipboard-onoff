@@ -1846,6 +1846,115 @@ HRESULT CMsRdpExtendedSettings::PrepareExtraSystemMenu()
     return hr;
 }
 
+HRESULT CMsRdpExtendedSettings::SetManualClipboardSyncEnabled(bool enabled)
+{
+    VARIANT value;
+    bstr_t name = _com_util::ConvertStringToBSTR("ManualClipboardSyncEnabled");
+
+    VariantInit(&value);
+    value.vt = VT_BOOL;
+    value.boolVal = enabled ? VARIANT_TRUE : VARIANT_FALSE;
+
+    return this->put_Property(name, &value);
+}
+
+HRESULT CMsRdpExtendedSettings::SyncLocalClipboardToRemoteSession()
+{
+    HRESULT hr;
+    VARIANT_BOOL canSync = VARIANT_FALSE;
+    IMsRdpClipboard* clipboard = NULL;
+    IMsRdpClientNonScriptable7* nonScriptable = NULL;
+
+    hr = m_pUnknown->QueryInterface(IID_IMsRdpClientNonScriptable7, (LPVOID*)&nonScriptable);
+
+    if (SUCCEEDED(hr))
+        hr = nonScriptable->get_Clipboard(&clipboard);
+
+    if (SUCCEEDED(hr) && !clipboard)
+        hr = E_NOINTERFACE;
+
+    if (SUCCEEDED(hr))
+        hr = clipboard->raw_CanSyncLocalClipboardToRemoteSession(&canSync);
+
+    if (SUCCEEDED(hr) && canSync == VARIANT_TRUE)
+        hr = clipboard->raw_SyncLocalClipboardToRemoteSession();
+
+    MsRdpEx_LogPrint(DEBUG, "Local clipboard sync: CanSync=%d, HRESULT=0x%08X",
+        canSync == VARIANT_TRUE ? 1 : 0, hr);
+
+    if (clipboard)
+        clipboard->Release();
+
+    if (nonScriptable)
+        nonScriptable->Release();
+
+    return SUCCEEDED(hr) && canSync != VARIANT_TRUE ? S_FALSE : hr;
+}
+
+HRESULT CMsRdpExtendedSettings::SyncRemoteClipboardToLocalSession()
+{
+    HRESULT hr;
+    VARIANT_BOOL canSync = VARIANT_FALSE;
+    IMsRdpClipboard* clipboard = NULL;
+    IMsRdpClientNonScriptable7* nonScriptable = NULL;
+
+    hr = m_pUnknown->QueryInterface(IID_IMsRdpClientNonScriptable7, (LPVOID*)&nonScriptable);
+
+    if (SUCCEEDED(hr))
+        hr = nonScriptable->get_Clipboard(&clipboard);
+
+    if (SUCCEEDED(hr) && !clipboard)
+        hr = E_NOINTERFACE;
+
+    if (SUCCEEDED(hr))
+        hr = clipboard->raw_CanSyncRemoteClipboardToLocalSession(&canSync);
+
+    if (SUCCEEDED(hr) && canSync == VARIANT_TRUE)
+    {
+        DWORD previousSequenceNumber = GetClipboardSequenceNumber();
+        hr = clipboard->raw_SyncRemoteClipboardToLocalSession();
+
+        if (SUCCEEDED(hr))
+        {
+            m_RemoteClipboardSequenceNumber = GetClipboardSequenceNumber();
+
+            if (m_RemoteClipboardSequenceNumber != previousSequenceNumber)
+                MsRdpEx_LogPrint(DEBUG, "Remote clipboard synchronized");
+        }
+    }
+
+    if (clipboard)
+        clipboard->Release();
+
+    if (nonScriptable)
+        nonScriptable->Release();
+
+    return SUCCEEDED(hr) && canSync != VARIANT_TRUE ? S_FALSE : hr;
+}
+
+void CMsRdpExtendedSettings::SetAutomaticClipboardSyncEnabled(bool enabled)
+{
+    m_AutomaticClipboardSyncEnabled = enabled;
+
+    if (!enabled)
+        m_RemoteClipboardSequenceNumber = 0;
+}
+
+bool CMsRdpExtendedSettings::GetAutomaticClipboardSyncEnabled()
+{
+    return m_AutomaticClipboardSyncEnabled;
+}
+
+bool CMsRdpExtendedSettings::ShouldSyncLocalClipboardUpdate()
+{
+    DWORD sequenceNumber = GetClipboardSequenceNumber();
+    bool shouldSync = !m_RemoteClipboardSequenceNumber ||
+        sequenceNumber != m_RemoteClipboardSequenceNumber;
+
+    m_RemoteClipboardSequenceNumber = 0;
+    return shouldSync;
+}
+
 char* CMsRdpExtendedSettings::GetKdcProxyUrl()
 {
     if (m_KdcProxyUrl)
