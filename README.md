@@ -104,9 +104,6 @@ If it was the default `.rdp` handler, choose Microsoft Remote Desktop Connection
 - Synchronization while on is triggered by focus changes, not by a periodic background poll.
 - Turning synchronization off does not clear either clipboard.
 - Server Group Policy and local RDP redirection settings still apply.
-- Text and file clipboard transfers were manually verified on x64 Windows. Other architectures require additional
-  testing.
-- The program does not modify or terminate `rdpclip.exe` on the remote computer.
 
 ## License and upstream
 
