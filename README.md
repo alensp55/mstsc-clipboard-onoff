@@ -1,4 +1,4 @@
-# RDP Clipboard On/Off in microsoft remote desktop (mstsc.exe)
+# RDP Clipboard On/Off in Microsoft remote desktop (mstsc.exe)
 
 [Русская версия](README.ru.md)
 
