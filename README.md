@@ -18,10 +18,12 @@ This project is a focused fork of [Devolutions/MsRdpEx](https://github.com/Devol
 
 - `mstscex.exe` starts the original Microsoft `mstsc.exe` through `MsRdpEx.dll`.
 - The normal MSTSC settings window and its built-in features remain available.
-- The Microsoft RDP ActiveX manual clipboard API is enabled before connecting.
+- The Microsoft RDP ActiveX manual clipboard mode is enabled before connecting.
 - Automatic synchronization is disabled at the start of every connection.
 - The connection window system menu contains **Clipboard: automatic synchronization**.
 - Unchecked means off; checked means on.
+- When checked, MSTSC's native automatic clipboard engine is restored so text and file transfers use the standard
+  RDP clipboard channel.
 
 The normal **Local Resources → Clipboard** option must remain enabled. It is the RDP capability gate; the new switch
 controls when synchronization is active during the session.
@@ -54,7 +56,8 @@ rights.
 2. Connect normally using the familiar MSTSC interface.
 3. Open the connection window system menu with `Alt+Space`, or right-click the full-screen connection bar.
 4. Only when a transfer is needed, select **Clipboard: automatic synchronization** to turn synchronization on.
-5. Turn it off again after the transfer.
+5. For files, wait until the copy operation has completed.
+6. Turn synchronization off again after the transfer.
 
 Every new connection starts unchecked. Turning the switch off stops later synchronization; it does not erase data
 already present in either clipboard.
@@ -98,8 +101,8 @@ If it was the default `.rdp` handler, choose Microsoft Remote Desktop Connection
 - When synchronization is on, clipboard contents can cross the RDP boundary in both directions.
 - Turning synchronization off does not clear either clipboard.
 - Server Group Policy and local RDP redirection settings still apply.
-- The current implementation was manually verified with text clipboard data on x64 Windows. Other clipboard formats
-  and architectures require additional testing.
+- Text clipboard data was manually verified on x64 Windows. File transfer now uses the native MSTSC synchronization
+  path; file transfer and other architectures require additional manual testing.
 - The program does not modify or terminate `rdpclip.exe` on the remote computer.
 
 ## License and upstream

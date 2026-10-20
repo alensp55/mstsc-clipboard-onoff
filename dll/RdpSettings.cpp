@@ -1891,68 +1891,14 @@ HRESULT CMsRdpExtendedSettings::SyncLocalClipboardToRemoteSession()
     return SUCCEEDED(hr) && canSync != VARIANT_TRUE ? S_FALSE : hr;
 }
 
-HRESULT CMsRdpExtendedSettings::SyncRemoteClipboardToLocalSession()
-{
-    HRESULT hr;
-    VARIANT_BOOL canSync = VARIANT_FALSE;
-    IMsRdpClipboard* clipboard = NULL;
-    IMsRdpClientNonScriptable7* nonScriptable = NULL;
-
-    hr = m_pUnknown->QueryInterface(IID_IMsRdpClientNonScriptable7, (LPVOID*)&nonScriptable);
-
-    if (SUCCEEDED(hr))
-        hr = nonScriptable->get_Clipboard(&clipboard);
-
-    if (SUCCEEDED(hr) && !clipboard)
-        hr = E_NOINTERFACE;
-
-    if (SUCCEEDED(hr))
-        hr = clipboard->raw_CanSyncRemoteClipboardToLocalSession(&canSync);
-
-    if (SUCCEEDED(hr) && canSync == VARIANT_TRUE)
-    {
-        DWORD previousSequenceNumber = GetClipboardSequenceNumber();
-        hr = clipboard->raw_SyncRemoteClipboardToLocalSession();
-
-        if (SUCCEEDED(hr))
-        {
-            m_RemoteClipboardSequenceNumber = GetClipboardSequenceNumber();
-
-            if (m_RemoteClipboardSequenceNumber != previousSequenceNumber)
-                MsRdpEx_LogPrint(DEBUG, "Remote clipboard synchronized");
-        }
-    }
-
-    if (clipboard)
-        clipboard->Release();
-
-    if (nonScriptable)
-        nonScriptable->Release();
-
-    return SUCCEEDED(hr) && canSync != VARIANT_TRUE ? S_FALSE : hr;
-}
-
 void CMsRdpExtendedSettings::SetAutomaticClipboardSyncEnabled(bool enabled)
 {
     m_AutomaticClipboardSyncEnabled = enabled;
-
-    if (!enabled)
-        m_RemoteClipboardSequenceNumber = 0;
 }
 
 bool CMsRdpExtendedSettings::GetAutomaticClipboardSyncEnabled()
 {
     return m_AutomaticClipboardSyncEnabled;
-}
-
-bool CMsRdpExtendedSettings::ShouldSyncLocalClipboardUpdate()
-{
-    DWORD sequenceNumber = GetClipboardSequenceNumber();
-    bool shouldSync = !m_RemoteClipboardSequenceNumber ||
-        sequenceNumber != m_RemoteClipboardSequenceNumber;
-
-    m_RemoteClipboardSequenceNumber = 0;
-    return shouldSync;
 }
 
 char* CMsRdpExtendedSettings::GetKdcProxyUrl()
