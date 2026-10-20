@@ -93,7 +93,6 @@ using namespace MSTSCLib;
 
 class CMsRdpClient;
 
-static const DISPID MsRdpEx_OnConnectedDispId = 2;
 static const DISPID MsRdpEx_OnLoginCompleteDispId = 3;
 
 class CMsRdpClientEventSink : public IDispatch
@@ -169,16 +168,7 @@ public:
         EXCEPINFO*,
         UINT*) override
     {
-        if (dispIdMember == MsRdpEx_OnConnectedDispId &&
-            MsRdpEx_GetEnvBool("MSRDPEX_MANUAL_CLIPBOARD_SYNC", false))
-        {
-            m_extendedSettings->SetAutomaticClipboardSyncEnabled(false);
-            HRESULT clipboardHr = m_extendedSettings->SetManualClipboardSyncEnabled(true);
-
-            if (FAILED(clipboardHr))
-                MsRdpEx_LogPrint(WARN, "Post-connect manual clipboard setup failed: 0x%08X", clipboardHr);
-        }
-        else if (dispIdMember == MsRdpEx_OnLoginCompleteDispId)
+        if (dispIdMember == MsRdpEx_OnLoginCompleteDispId)
         {
             m_extendedSettings->SetLoginComplete();
             m_extendedSettings->ReapplyHardwareZoomLevel();
@@ -687,6 +677,15 @@ public:
             m_pMsRdpExtendedSettings->PrepareMouseJiggler();
             m_pMsRdpExtendedSettings->PrepareVideoRecorder();
             m_pMsRdpExtendedSettings->PrepareExtraSystemMenu();
+
+            if (MsRdpEx_GetEnvBool("MSRDPEX_MANUAL_CLIPBOARD_SYNC", false))
+            {
+                m_pMsRdpExtendedSettings->SetAutomaticClipboardSyncEnabled(false);
+                HRESULT clipboardHr = m_pMsRdpExtendedSettings->SetManualClipboardSyncEnabled(true);
+
+                if (FAILED(clipboardHr))
+                    MsRdpEx_LogPrint(WARN, "Manual clipboard sync setup failed: 0x%08X", clipboardHr);
+            }
         }
 
         BeginSspiSessionScope("connect");

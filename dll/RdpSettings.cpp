@@ -1891,6 +1891,39 @@ HRESULT CMsRdpExtendedSettings::SyncLocalClipboardToRemoteSession()
     return SUCCEEDED(hr) && canSync != VARIANT_TRUE ? S_FALSE : hr;
 }
 
+HRESULT CMsRdpExtendedSettings::SyncRemoteClipboardToLocalSession()
+{
+    HRESULT hr;
+    VARIANT_BOOL canSync = VARIANT_FALSE;
+    IMsRdpClipboard* clipboard = NULL;
+    IMsRdpClientNonScriptable7* nonScriptable = NULL;
+
+    hr = m_pUnknown->QueryInterface(IID_IMsRdpClientNonScriptable7, (LPVOID*)&nonScriptable);
+
+    if (SUCCEEDED(hr))
+        hr = nonScriptable->get_Clipboard(&clipboard);
+
+    if (SUCCEEDED(hr) && !clipboard)
+        hr = E_NOINTERFACE;
+
+    if (SUCCEEDED(hr))
+        hr = clipboard->raw_CanSyncRemoteClipboardToLocalSession(&canSync);
+
+    if (SUCCEEDED(hr) && canSync == VARIANT_TRUE)
+        hr = clipboard->raw_SyncRemoteClipboardToLocalSession();
+
+    MsRdpEx_LogPrint(DEBUG, "Remote clipboard sync: CanSync=%d, HRESULT=0x%08X",
+        canSync == VARIANT_TRUE ? 1 : 0, hr);
+
+    if (clipboard)
+        clipboard->Release();
+
+    if (nonScriptable)
+        nonScriptable->Release();
+
+    return SUCCEEDED(hr) && canSync != VARIANT_TRUE ? S_FALSE : hr;
+}
+
 void CMsRdpExtendedSettings::SetAutomaticClipboardSyncEnabled(bool enabled)
 {
     m_AutomaticClipboardSyncEnabled = enabled;

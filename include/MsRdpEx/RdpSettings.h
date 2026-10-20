@@ -54,6 +54,7 @@ public:
     HRESULT __stdcall PrepareExtraSystemMenu();
     HRESULT __stdcall SetManualClipboardSyncEnabled(bool enabled);
     HRESULT __stdcall SyncLocalClipboardToRemoteSession();
+    HRESULT __stdcall SyncRemoteClipboardToLocalSession();
     void SetAutomaticClipboardSyncEnabled(bool enabled);
     bool GetAutomaticClipboardSyncEnabled();
     void SetLoginComplete();

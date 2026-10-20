@@ -949,26 +949,23 @@ LRESULT CALLBACK Hook_IHWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                 {
                     bool automaticSyncEnabled =
                         !pExtendedSettings->GetAutomaticClipboardSyncEnabled();
-                    HRESULT clipboardHr = S_OK;
-
-                    if (automaticSyncEnabled)
-                    {
-                        HRESULT syncHr = pExtendedSettings->SyncLocalClipboardToRemoteSession();
-
-                        if (FAILED(syncHr))
-                        {
-                            MsRdpEx_LogPrint(WARN,
-                                "Initial local clipboard sync failed: 0x%08X", syncHr);
-                        }
-
-                        clipboardHr = pExtendedSettings->SetManualClipboardSyncEnabled(false);
-                    }
-                    else
-                        clipboardHr = pExtendedSettings->SetManualClipboardSyncEnabled(true);
+                    HRESULT clipboardHr = pExtendedSettings->SetManualClipboardSyncEnabled(true);
 
                     if (SUCCEEDED(clipboardHr))
                     {
                         pExtendedSettings->SetAutomaticClipboardSyncEnabled(automaticSyncEnabled);
+
+                        if (automaticSyncEnabled)
+                        {
+                            HRESULT syncHr = pExtendedSettings->SyncLocalClipboardToRemoteSession();
+
+                            if (FAILED(syncHr))
+                            {
+                                MsRdpEx_LogPrint(WARN,
+                                    "Initial local clipboard sync failed: 0x%08X", syncHr);
+                            }
+                        }
+
                         HWND hParentWnd = GetAncestor(hWnd, GA_ROOT);
                         HMENU hSystemMenu = GetSystemMenu(hParentWnd, FALSE);
                         UINT checkState = automaticSyncEnabled ? MF_CHECKED : MF_UNCHECKED;
@@ -985,6 +982,16 @@ LRESULT CALLBACK Hook_IHWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                 }
                 break;
         }
+    }
+    else if (uMsg == WM_SETFOCUS)
+    {
+        if (pExtendedSettings && pExtendedSettings->GetAutomaticClipboardSyncEnabled())
+            pExtendedSettings->SyncLocalClipboardToRemoteSession();
+    }
+    else if (uMsg == WM_KILLFOCUS)
+    {
+        if (pExtendedSettings && pExtendedSettings->GetAutomaticClipboardSyncEnabled())
+            pExtendedSettings->SyncRemoteClipboardToLocalSession();
     }
     else if (uMsg == WM_TIMER)
     {
